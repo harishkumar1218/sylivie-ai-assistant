@@ -1,48 +1,33 @@
-import cv2
-import sys
+import asyncio
 import json
-import requests
-url = 'http://localhost:3001/receiveData'
-payload = {'data': f'Received: HIII'}
-response = requests.post(url, json=payload)
-cap=cv2.VideoCapture(0)
-face=cv2.CascadeClassifier('haarcascade_frontalface_default.xml')
-# while True:
-_,img=cap.read()
-gy=cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)
-fc=face.detectMultiScale(gy,1.1,4)
-x1=0
-y1=0
-w1=0
-h1=0
+import websockets
+import cv2
+async def send_video_data(websocket):
+    cap = cv2.VideoCapture(0)
+    face = cv2.CascadeClassifier('haarcascade_frontalface_default.xml')
 
-for (x,y,w,h) in fc:
-    x1=x
-    y1=y
-    w1=w
-    h1=h
-    dic={"x":x1,"y":y1,"w":w1,"h":h1}
-js=json.dumps(dic)
-print(js)
-# cv2.imshow('img',img)
-    # k=cv2.waitKey(30) & 0xff
-    # if k==27:
-    #     break
-cap.relase()
-for line in sys.stdin:
-    # Process the input
-    input_data = line.strip()
+    while True:
+        _, img = cap.read()
+        gy = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        fc = face.detectMultiScale(gy, 1.1, 4)
 
-    # Perform operations with the input
+        x1, y1, w1, h1 = 0, 0, 0, 0
 
-    # Send data to Node.js using REST API
-    url = 'http://localhost:3001/receiveData'
-    payload = {'data': f'Received: {input_data}'}
-    response = requests.post(url, json=payload)
+        for (x, y, w, h) in fc:
+            x1, y1, w1, h1 = x, y, w, h
 
-    if response.status_code == 200:
-        print('Data sent to Node.js successfully')
-    else:
-        print('Failed to send data to Node.js')
+        data = {"x": str(x1), "y": str(y1), "w": str(w1), "h": str(h1)}
+        js = json.dumps(data)
+        print(js)
+        await websocket.send(js)
+        await asyncio.sleep(0.1)
 
-    sys.stdout.flush() 
+async def handler(websocket, path):
+    producer_task = asyncio.create_task(send_video_data(websocket))
+    await producer_task
+ 
+start_server = websockets.serve(handler, "localhost", 8000)
+ 
+asyncio.get_event_loop().run_until_complete(start_server)
+ 
+asyncio.get_event_loop().run_forever()
